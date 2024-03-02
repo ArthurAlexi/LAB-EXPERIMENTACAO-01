@@ -10,7 +10,7 @@ Neste laboratório, vamos estudar as principais características de sistemas pop
 * Arthur Alexi Moreira Menezes
 * Pablo Augusto Carneiro Magalhães
 * Pedro Lucas Aires dos Santos
-
+* Victor Hugo Criscollo Moreira
 ## Artefatos:
 
 * [Relatório](docs/README.md)
