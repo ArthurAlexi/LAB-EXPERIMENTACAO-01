@@ -26,42 +26,7 @@ HEADERS = {
   'Content-Type': 'application/json'
 }
 TODAY = datetime.now()
-NUMBER_OF_REPOSITORIES=30
-
-"""## Query Geral"""
-
-query_geral = """
-query geral_query {{
-  search(query: "stars:>{0}", type: REPOSITORY, first: {0}) {{
-    nodes {{
-      ... on Repository {{
-        nameWithOwner
-        updatedAt
-        createdAt
-        releases{{
-          totalCount
-        }}
-        nameWithOwner
-        issues{{
-          totalCount
-        }}
-        closedIssues: issues(states: CLOSED) {{
-          totalCount
-        }}
-         primaryLanguage {{
-          name
-        }}
-        releases{{
-          totalCount
-        }}
-        pullRequests(states:MERGED){{
-          totalCount
-        }}
-      }}
-    }}
-  }}
-}}
-""".format(NUMBER_OF_REPOSITORIES)
+NUMBER_OF_REPOSITORIES=1000
 
 """## Funções"""
 
@@ -72,218 +37,182 @@ def doPost(data : json)-> json:
 
   raise Exception(f'Erro ao fazer requisição: {response.status_code} \n {response.text}')
 
+def analisar_createdAt(repositorios):
+  data_frame = pd.DataFrame(repositories)
+  created_dates = [datetime.strptime(date, '%Y-%m-%dT%H:%M:%SZ') for date in data_frame['createdAt']]
+  age_years = [round((TODAY - date).days / 365, 2) for date in created_dates]
+  return age_years
+  # data_frame['Age (Years)'] = age_years
+  # return  data_frame
 
-
-def analisar_contribuicoes(repositorios):
-    repo_data = []
-    for repo in repositorios.get('data', {}).get('search', {}).get('nodes', []):
-        if isinstance(repo, dict):
-            repo_name = repo.get('nameWithOwner', '')
-            pull_requests_data = repo.get('pullRequests', {})
-            total_pull_requests = pull_requests_data.get('totalCount', 0)
-            repo_data.append({'Repositório': repo_name, 'Total de PRs': total_pull_requests})
-
-    return pd.DataFrame(repo_data)
-
-
-def analisar_releases(repositorios):
-    dados_repo = []
-    for repo in repositorios.get('data', {}).get('search', {}).get('nodes', []):
-        nome_repo = repo.get('nameWithOwner', '')
-        dados_releases = repo.get('releases', {})
-        total_releases = dados_releases.get('totalCount', 0)
-        dados_repo.append({'Repositório': nome_repo, 'Total de Releases': total_releases})
-
-    return pd.DataFrame(dados_repo)
-
-def analisar_updates(repositorios):
-    dados_repo = []
-    for repo in repositorios.get('data', {}).get('search', {}).get('nodes', []):
-        nome_repo = repo.get('nameWithOwner', '')
-        atualizado_em = repo.get('updatedAt', '')
-        data_ultimo_update = datetime.strptime(atualizado_em, '%Y-%m-%dT%H:%M:%SZ') if atualizado_em else None
-        dias_desde_ultimo_update = (datetime.now() - data_ultimo_update).days if data_ultimo_update else None
-        dados_repo.append({'Repositório': nome_repo, 'Data do Último Update': atualizado_em, 'Dias desde o Último Update': dias_desde_ultimo_update})
-
-    return pd.DataFrame(dados_repo)
-
-def analisar_linguagens(repositorios):
-    dados_repo = []
-    for repo in repositorios.get('data', {}).get('search', {}).get('nodes', []):
-        nome_repo = repo.get('nameWithOwner', '')
-        linguagem_principal = repo.get('primaryLanguage', {}).get('name') if repo.get('primaryLanguage') else ''
-        dados_repo.append({'Repositório': nome_repo, 'Linguagem Mais Comum': linguagem_principal})
-
-    return pd.DataFrame(dados_repo)
+def tratar_updateAt(repositories):
+  data_frame = pd.DataFrame(repositories)
+  updated_dates = [datetime.strptime(date, '%Y-%m-%dT%H:%M:%SZ') for date in data_frame['createdAt']]
+  days = [round((TODAY - date).days, 2) for date in updated_dates]
+  return days
 
 def analisar_issues_fechadas(repositorios):
-    dados_repo = []
-    for repo in repositorios.get('data', {}).get('search', {}).get('nodes', []):
-        nome_repo = repo.get('nameWithOwner', '')
+    lista = []
+    for repo in repositorios:
         total_issues = repo.get('issues', {}).get('totalCount', 0)
         total_issues_fechadas = repo.get('closedIssues', {}).get('totalCount', 0)
-
         percentual_issues_fechadas = (total_issues_fechadas / total_issues) * 100 if total_issues > 0 else 0
-        dados_repo.append({'Repositório': nome_repo, 'Percentual de Issues Fechadas': percentual_issues_fechadas})
+        lista.append(round(percentual_issues_fechadas,2))
 
-    return pd.DataFrame(dados_repo)
+    return lista
 
-"""## Variáveis"""
+"""## Query Geral"""
 
-data = {
-    'query': query_geral
+query_template = """
+query search_repositories($queryString: String!, $perPage: Int!, $cursor: String) {
+  search(query: $queryString type: REPOSITORY, first: $perPage, after: $cursor) {
+    repositoryCount
+    edges {
+      node {
+        ... on Repository {
+          nameWithOwner
+          updatedAt
+          createdAt
+          releases {
+            totalCount
+          }
+          issues {
+            totalCount
+          }
+          closedIssues: issues(states: CLOSED) {
+            totalCount
+          }
+          openIssues: issues(states: OPEN) {
+            totalCount
+          }
+          primaryLanguage {
+            name
+          }
+          pullRequests(states: MERGED) {
+            totalCount
+          }
+        }
+      }
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+  }
 }
+"""
 
-repositorios_geral = doPost(data)
-contribuicoes_analisadas = analisar_contribuicoes(repositorios_geral)
-releases_analisadas = analisar_releases(repositorios_geral)
-updates_analisados = analisar_updates(repositorios_geral)
-linguagens_analisadas = analisar_linguagens(repositorios_geral)
-issues_fechadas_analisadas = analisar_issues_fechadas(repositorios_geral)
 
-"""# Análises
+per_page = 20
+cursor = None
+query_string = "stars:>{0}".format(NUMBER_OF_REPOSITORIES)
+repositories = []
+
+while len(repositories) < NUMBER_OF_REPOSITORIES:
+    variables = {
+        "queryString": query_string,
+        "perPage": per_page,
+        "cursor": cursor
+    }
+    data = doPost(data={'query': query_template, 'variables': variables})
+
+    if 'errors' in data:
+        print("GraphQL query failed:", data['errors'])
+        break
+
+    for edge in data['data']['search']['edges']:
+        repositories.append(edge['node'])
+
+    if data['data']['search']['pageInfo']['hasNextPage']:
+        cursor = data['data']['search']['pageInfo']['endCursor']
+    else:
+        break
+
+print("Total repositories: ", len(repositories))
+print("Cursor: ", cursor)
+print("Per page: ", per_page)
+
+# data_brutus = pd.DataFrame(repositories)
+# data_brutus.to_csv('dados_base.csv', index=False, sep=';')
+
+"""## Tratamento"""
+
+dataFrame_tratado = pd.DataFrame()
+dataFrame_tratado['Repositorio'] = [repo.get('nameWithOwner') for repo in repositories]
+dataFrame_tratado['Anos'] = analisar_createdAt(repositories)
+dataFrame_tratado['nº PullRequests'] = [repo.get('pullRequests', {}).get('totalCount', 0) if isinstance(repo, dict) else 0 for repo in repositories]
+dataFrame_tratado['nº Releases'] = [repo.get('releases').get('totalCount',0) if isinstance(repo, dict) else 0 for repo in repositories]
+dataFrame_tratado['Último Update (dd)'] = tratar_updateAt(repositories)
+dataFrame_tratado['Linguagem Mais Comum'] = [repo.get('primaryLanguage', {}).get('name', None) if (isinstance(repo, dict) and repo.get('primaryLanguage') is not None) else None for repo in repositories]
+dataFrame_tratado['Issues Fechadas ( % )'] = analisar_issues_fechadas(repositories)
+
+dataFrame_tratado.head()
+
+# dataFrame_tratado.to_csv('dados_tratados.csv', index=False, sep=';')
+
+"""# Hipóteses Informais:
+
+### RQ 01: Sistemas populares são maduros/antigos?
+
+<strong>Hipótese informal:</strong> Sistemas populares tendem a ser mais antigos, uma vez que a maturidade e a popularidade geralmente exigem tempo para se desenvolverem.
+
+### RQ 02: Sistemas populares recebem muita contribuição externa?
+
+<strong>Hipótese informal:</strong> Sistemas populares geralmente recebem uma quantidade significativa de contribuições externas, pois a popularidade tende a atrair uma comunidade maior de desenvolvedores interessados em colaborar. Porém, nem todas as contribuições são aceitas.
+
+### RQ 03: Sistemas populares lançam releases com frequência?
+
+<strong>Hipótese informal:</strong> Sistemas populares tendem a lançar releases com frequência, já que uma comunidade ativa muitas vezes busca novas funcionalidades e correções de bugs regularmente.
+
+### RQ 04: Sistemas populares são atualizados com frequência?
+
+<strong>Hipótese informal:</strong> Sistemas populares são frequentemente atualizados, pois a manutenção contínua é necessária para sustentar sua popularidade e atender às demandas da comunidade.
+
+### RQ 05: Sistemas populares são escritos nas linguagens mais populares?
+
+<strong>Hipótese informal:</strong> Sistemas populares têm uma tendência a serem escritos nas linguagens de programação mais populares, uma vez que isso pode aumentar sua acessibilidade e atratividade para uma base de desenvolvedores mais ampla.
+
+### RQ 06: Sistemas populares possuem um alto percentual de issues fechadas?
+
+<strong>Hipótese informal:</strong> Sistemas populares tendem a ter um alto percentual de issues fechadas. Por dois fatores: esses sistemas possuem comunidade maior que  geralmente implica em uma capacidade maior de resolver problemas e responder às necessidades dos usuários. E o outro fator é devido a complexidade e tamanho do sistema, tornando-se comum ter bugs e issues sendo fechadas.
+
+# Análises
 
 ## RQ 01: Sistemas populares são maduros/antigos?
 ### Métrica: idade do repositório (calculado a partir da data de sua criação)
 """
 
-query_1 = """
-query questao_1 {{
-    search(query:"stars:>{0}", type:REPOSITORY, first:{0}){{
-        nodes {{
-            ... on Repository {{
-                name
-                createdAt
-            }}
-        }}
-    }}
-}}
-""".format(NUMBER_OF_REPOSITORIES)
 
-repositories = []
-data = {
-    'query': query_1
-}
-response_json = doPost(data)
-repositories = response_json['data']['search']['nodes']
-
-data_frame = pd.DataFrame(repositories)
-created_dates = [datetime.strptime(date, '%Y-%m-%dT%H:%M:%SZ') for date in data_frame['createdAt']]
-age_years = [round((TODAY - date).days / 365, 2) for date in created_dates]
-
-data_frame['Age (Years)'] = age_years
-mean_age = data_frame['Age (Years)'].mean()
-data_frame.head(NUMBER_OF_REPOSITORIES)
-
-# x=10
-# if x > 5:
-#   print('if')
-# elif (x/2 == 0 and x< 5):
-#     print('else')
 
 """## RQ 02: Sistemas populares recebem muita contribuição externa?
 ### Métrica: total de pull requests aceitas
 """
 
-# query_2 = """
-# query questao_2 {
-#   search(query: "stars:>{0}", type: REPOSITORY, first: {0}) {
-#     nodes {
-#       ... on Repository {
-#         nameWithOwner
-#         pullRequests(states:MERGED){
-#           totalCount
-#         }
-#       }
-#     }
-#   }
-# }
-# """.format(NUMBER_OF_REPOSITORIES)
 
-contribuicoes_analisadas.head(NUMBER_OF_REPOSITORIES)
 
 """## RQ 03: Sistemas populares lançam releases com frequência?
 ### Métrica: total de releases
 """
 
-# query_3 = """
-# query questao_3 {
-#   search(query: "stars:>{}", type: REPOSITORY, first: {0}) {
-#     nodes {
-#       ... on Repository {
-#         nameWithOwner
-#         releases{
-#           totalCount
-#         }
-#       }
-#     }
-#   }
-# }
-# """.format(NUMBER_OF_REPOSITORIES)
 
-releases_analisadas.head(NUMBER_OF_REPOSITORIES)
 
 """## RQ 04: Sistemas populares são atualizados com frequência?
 ### Métrica: tempo até a última atualização (calculado a partir da data de última atualização)
 """
 
-# query_4 = """
-# query questao_4 {
-#   search(query: "stars:> {0}", type: REPOSITORY, first: {0}) {
-#     nodes {
-#       ... on Repository {
-#         nameWithOwner
-#         updatedAt
-#       }
-#     }
-#   }
-# }
-# """.format(NUMBER_OF_REPOSITORIES)
 
-updates_analisados.head(NUMBER_OF_REPOSITORIES)
 
 """## RQ 05: Sistemas populares são escritos nas <a href='https://octoverse.github.com/'>linguagens mais populares</a>?
 
 ### Métrica: linguagem primária de cada um desses repositórios
 """
 
-# query_5 = """
-# query questao_5 {
-#   search(query: "stars:>{0}", type: REPOSITORY, first:{0}) {
-#     nodes {
-#       ... on Repository {
-#         nameWithOwner
-#         primaryLanguage {
-#           name
-#         }
-#       }
-#     }
-#   }
-# }
-# """.format(NUMBER_OF_REPOSITORIES)
 
-linguagens_analisadas.head(NUMBER_OF_REPOSITORIES)
 
 """## RQ 06: Sistemas populares possuem um alto percentual de issues fechadas?
 ### Métrica: Métrica: razão entre número de issues fechadas pelo total de issues)
+
+# Lembrete @ Plabo @Charut
+
+### na query tem a gente ta pegando o updateAt mas isso só retorna a ultima atualização do github em cima do repositório, temos q ver onde busca a ultima atualização de commit, merge ou sla do repo
 """
-
-# query_6 = """
-# query questao_6 {
-#   search(query: "stars:>{0}", type: REPOSITORY, first: {0}) {
-#     nodes {
-#       ... on Repository {
-#         nameWithOwner
-#         issues{
-#           totalCount
-#         }
-#         closedIssues: issues(states: CLOSED) {
-#           totalCount
-#         }
-#       }
-#     }
-#   }
-# }
-# """.format(NUMBER_OF_REPOSITORIES)
-
-issues_fechadas_analisadas.head(NUMBER_OF_REPOSITORIES)
