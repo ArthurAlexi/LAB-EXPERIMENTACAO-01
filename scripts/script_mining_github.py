@@ -16,6 +16,7 @@ import pandas as pd
 import json
 from datetime import datetime
 from google.colab import userdata
+import matplotlib.pyplot as plt
 
 """## Constantes"""
 
@@ -47,19 +48,47 @@ def analisar_createdAt(repositorios):
 
 def tratar_updateAt(repositories):
   data_frame = pd.DataFrame(repositories)
-  updated_dates = [datetime.strptime(date, '%Y-%m-%dT%H:%M:%SZ') for date in data_frame['createdAt']]
+  updated_dates = [datetime.strptime(date, '%Y-%m-%dT%H:%M:%SZ') for date in data_frame['updatedAt']]
   days = [round((TODAY - date).days, 2) for date in updated_dates]
-  return days
+  return [0 if day == -1 else day for day in days]
+
 
 def analisar_issues_fechadas(repositorios):
     lista = []
     for repo in repositorios:
         total_issues = repo.get('issues', {}).get('totalCount', 0)
-        total_issues_fechadas = repo.get('closedIssues', {}).get('totalCount', 0)
+        total_issues_fechadas = repo.get('closedIssues', {}).get('totalCount', 0)  # Acessar 'totalCount' em vez de 'updatedAt'
         percentual_issues_fechadas = (total_issues_fechadas / total_issues) * 100 if total_issues > 0 else 0
-        lista.append(round(percentual_issues_fechadas,2))
-
+        lista.append(round(percentual_issues_fechadas, 2))
     return lista
+
+def plotar_boxplot(df, coluna: str, titulo: str)-> None:
+    plt.figure(figsize=(6, 3))
+    plt.boxplot(df[coluna], vert=False)
+    plt.title(titulo)
+    plt.show()
+
+def plotar_violinplot(df, coluna: str, titulo: str)-> None:
+    plt.figure(figsize=(6, 3))
+    plt.violinplot(df[coluna], vert=False)
+    plt.xlabel(coluna)
+    plt.title(titulo)
+    plt.show()
+
+def plotar_grafico_dispersao(df, coluna_x: str, coluna_y: str, label_x=None, label_y=None):
+    if label_x is None:
+        label_x = coluna_x
+
+    if label_y is None:
+        label_y = coluna_y
+
+    plt.figure(figsize=(10, 4))
+    plt.scatter(df[coluna_x], df[coluna_y])
+    plt.xlabel(label_x)
+    plt.ylabel(label_y)
+    plt.title('Gráfico de Dispersão')
+    plt.grid(True)
+    plt.show()
 
 """## Query Geral"""
 
@@ -87,6 +116,9 @@ query search_repositories($queryString: String!, $perPage: Int!, $cursor: String
           }
           primaryLanguage {
             name
+          }
+          stargazers {
+            totalCount
           }
           pullRequests(states: MERGED) {
             totalCount
@@ -145,6 +177,7 @@ dataFrame_tratado['nº Releases'] = [repo.get('releases').get('totalCount',0) if
 dataFrame_tratado['Último Update (dd)'] = tratar_updateAt(repositories)
 dataFrame_tratado['Linguagem Mais Comum'] = [repo.get('primaryLanguage', {}).get('name', None) if (isinstance(repo, dict) and repo.get('primaryLanguage') is not None) else None for repo in repositories]
 dataFrame_tratado['Issues Fechadas ( % )'] = analisar_issues_fechadas(repositories)
+dataFrame_tratado['Estrelas'] = [repo.get('stargazers', {}).get('totalCount', 0) if isinstance(repo, dict) else 0 for repo in repositories]
 
 dataFrame_tratado.head()
 
@@ -177,42 +210,93 @@ dataFrame_tratado.head()
 <strong>Hipótese informal:</strong> Sistemas populares tendem a ter um alto percentual de issues fechadas. Por dois fatores: esses sistemas possuem comunidade maior que  geralmente implica em uma capacidade maior de resolver problemas e responder às necessidades dos usuários. E o outro fator é devido a complexidade e tamanho do sistema, tornando-se comum ter bugs e issues sendo fechadas.
 
 # Análises
+"""
 
-## RQ 01: Sistemas populares são maduros/antigos?
+dados = pd.read_csv('dados_tratados.csv', sep=';', index_col=False)
+dados['Linguagem Mais Comum'].fillna('Outros', inplace=True)
+# dados.head()
+dados.columns
+
+"""## RQ 01: Sistemas populares são maduros/antigos?
 ### Métrica: idade do repositório (calculado a partir da data de sua criação)
 """
 
+media_idades = dados['Anos'].mean()
+media_idades
 
+plotar_violinplot(dados, 'Anos', 'Idades')
+
+plotar_boxplot(dados, 'Anos', 'Idades')
+
+plotar_grafico_dispersao(dados, 'Anos', 'Estrelas', 'Idade', 'Total de Estrelas')
 
 """## RQ 02: Sistemas populares recebem muita contribuição externa?
 ### Métrica: total de pull requests aceitas
 """
 
+plotar_violinplot(dados, 'nº PullRequests', 'nº PullRequests aceitas')
 
+plotar_grafico_dispersao(dados, 'nº PullRequests', 'Estrelas', 'nº PullRequests', 'Total de Estrelas')
 
 """## RQ 03: Sistemas populares lançam releases com frequência?
 ### Métrica: total de releases
 """
 
+media_releases = dados['nº Releases'].mean()
+total_zeros = (dados['nº Releases'] == 0).sum()
 
+print(f'media: {media_releases} :  total de zeros: {total_zeros} ')
+
+plotar_violinplot(dados, 'nº Releases', 'nº Releases')
+
+plotar_grafico_dispersao(dados, 'nº Releases', 'Estrelas', 'nº Releases', 'Total de Estrelas')
 
 """## RQ 04: Sistemas populares são atualizados com frequência?
 ### Métrica: tempo até a última atualização (calculado a partir da data de última atualização)
 """
 
+dados['Último Update (dd)'].mean()
 
+plotar_violinplot(dados, 'Último Update (dd)', 'Último Update (dd)')
+
+plotar_grafico_dispersao(dados, 'Último Update (dd)', 'Estrelas')
 
 """## RQ 05: Sistemas populares são escritos nas <a href='https://octoverse.github.com/'>linguagens mais populares</a>?
 
 ### Métrica: linguagem primária de cada um desses repositórios
 """
 
+def plotar_grafico_barras(df):
 
+        contagem_linguagens = df['Linguagem Mais Comum'].value_counts()
+
+        plt.figure(figsize=(12, 6))
+        contagem_linguagens.plot(kind='bar')
+        plt.xlabel('Linguagens')
+        plt.ylabel('Contagem')
+        plt.title('Linguagens Mais Comuns')
+        plt.grid(True)
+        plt.show()
+
+plotar_grafico_barras(dados)
+
+def teste(df):
+    plt.figure(figsize=(16, 6))
+    plt.scatter(df['Linguagem Mais Comum'], df['Estrelas'])
+    plt.xlabel('Linguagem Mais Comum')
+    plt.ylabel('Total de Estrelas')
+    plt.title('Gráfico de Dispersão: Linguagem Mais Comum vs Total de Estrelas')
+    plt.xticks(rotation=90)
+    plt.grid(True)
+    plt.show()
+teste(dados)
 
 """## RQ 06: Sistemas populares possuem um alto percentual de issues fechadas?
 ### Métrica: Métrica: razão entre número de issues fechadas pelo total de issues)
-
-# Lembrete @ Plabo @Charut
-
-### na query tem a gente ta pegando o updateAt mas isso só retorna a ultima atualização do github em cima do repositório, temos q ver onde busca a ultima atualização de commit, merge ou sla do repo
 """
+
+dados['Issues Fechadas ( % )'].mean()
+
+plotar_violinplot(dados, 'Issues Fechadas ( % )', titulo='Issues Fechadas ( % )')
+
+plotar_grafico_dispersao(dados, 'Issues Fechadas ( % )', 'Estrelas')
