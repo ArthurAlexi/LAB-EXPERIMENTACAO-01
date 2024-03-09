@@ -1,5 +1,11 @@
 # Relatório
 
+### Metodologia
+
+Foi realizado requisições para a API do grafhQl do GitHub a fim de obter os dados dos 1000 repositórios necessários para responder as perguntas listadas a baixo, seguido das suas hipóteses informais.
+
+O código utilizado tanto para as requisições quanto para o tratamento dos dados se encontram no diretório scripts.
+
 ### Hipóteses informais: 
 
 #### RQ 01: Sistemas populares são maduros/antigos?
@@ -21,7 +27,7 @@ Hipótese informal: Sistemas populares têm uma tendência a serem escritos nas 
 Hipótese informal: Sistemas populares tendem a ter um alto percentual de issues fechadas. Por dois fatores: esses sistemas possuem comunidade maior que geralmente implica em uma capacidade maior de resolver problemas e responder às necessidades dos usuários. E o outro fator é devido a complexidade e tamanho do sistema, tornando-se comum ter bugs e issues sendo fechadas.
 
 ### Análises: 
-
+<strong>Dia em que os dados foram obtidos:</strong> 09/03/2024
 #### RQ 01: Sistemas populares são maduros/antigos?
 
 <strong>Definição:</strong> A base de comparação para saber se um sistema popular é ou não será com a idade do GitHub. Como a a data de criação 2008, teremos como base 16 anos para a análise a seguir.
@@ -70,7 +76,7 @@ Esses valores podem indicar a natureza colaborativa e aberta dos projetos popula
 
 <div style="display: flex;">
   <img src="https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/635e9129-5ad3-46b9-8411-81b834452d63" alt="" style="width: 60%; height: auto;">
-  <img src="https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/953d0ce4-523f-4b46-8062-b027eeeab4a5" alt="violin plot Pull Requests" style="width: 30%; height: auto;">
+  <img src="https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/953d0ce4-523f-4b46-8062-b027eeeab4a5" alt="violin plot" style="width: 30%; height: auto;">
 </div>
 
 Ao examinarmos esta seção, é importante observar que os intervalos de lançamento de cada release não foram considerados, o que impede uma avaliação precisa da frequência de lançamento.
@@ -84,5 +90,40 @@ Outro aspecto que merece destaque é o número considerável de repositórios em
 - O repositório pode não seguir o padrão comum de lançamentos para indicar suas atualizações. Em alguns casos, os desenvolvedores podem optar por não utilizar o recurso de releases do GitHub para gerenciar suas versões, optando por outras abordagens de versionamento ou métodos alternativos para indicar suas atualizações.
 
 
+#### RQ 04: Sistemas populares são atualizados com frequência?
+<strong>Média:</strong> 0.01
 
+<div style="display: flex;">
+  <img src="https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/7b02e0ac-3dca-4ec6-b366-6125f7f58f3a" alt="violin plot" style="width: 60%; height: auto;">
+  <img src="https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/2ad6e8f1-894a-4058-8484-bcdc50d1a5cf" alt="" style="width: 30%; height: auto;">
+</div>
 
+Ao analisarmos os gráficos, observarmos que todos os repositórios receberam atualização no dia que foi construído a base de dados.
+
+O ideal para realizar uma melhor avaliação seria observar o intervalo das alterações.
+
+#### RQ 05: Sistemas populares são escritos nas linguagens mais populares?
+<strong>Oberservação:</strong> Durante a análise dos dados, observamos que alguns repositórios não possuíam uma linguagem predominante associada a eles. Ao investigarmos mais de perto esses casos, identificamos que muitos desses repositórios se tratavam de recursos educacionais, tutoriais ou conteúdos similares.
+
+Esses repositórios frequentemente continham uma variedade de tipos de arquivos, como PDFs, vídeos e documentos. Embora esses recursos sejam valiosos e úteis para a comunidade, o GitHub não os considera como uma linguagem de programação específica.
+
+Diante dessa situação, decidimos categorizar esses casos como "outros" para fins de análise. Essa abordagem nos permite agrupar esses repositórios em uma categoria distinta, reconhecendo sua importância enquanto reconhecemos a falta de uma linguagem de programação predominante associada a eles.
+
+![image](https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/816077db-dbb6-4d16-a41f-78cdf03d15c2)
+
+![image](https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/11dffc41-fa76-4181-a195-2d895790a347)
+
+#### RQ 06: Sistemas populares possuem um alto percentual de issues fechadas?
+
+<strong>Definições:</strong> Para essa análise, consideramos o percentual:  Issues fechados / Total de issues
+
+<strong>Média:</strong> 76.05347
+
+<div style="display: flex;">
+  <img src="https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/29077ac5-4dd2-4c13-a253-cba0cb23071b" alt="violin plot" style="width: 60%; height: auto;">
+  <img src="https://github.com/ArthurAlexi/LAB-EXPERIMENTACAO-01/assets/90854173/63a6733b-39ea-42ac-8462-8181faf9cb5d" alt="" style="width: 30%; height: auto;">
+</div>
+
+Ao examinarmos os gráficos apresentados acima, fica evidente que os repositórios populares exibem uma alta taxa de fechamento de issues. Essa observação está alinhada com as métricas de atualização discutidas anteriormente, que destacaram a frequência de lançamentos, aceitação de pull requests e outras formas de engajamento com a comunidade de desenvolvedores.
+
+A alta taxa de fechamento de issues sugere um compromisso significativo por parte dos responsáveis pelo repositório em resolver problemas relatados pela comunidade de usuários. 
